@@ -128,9 +128,3 @@ scikit-learn
 
 ---
 
-## ▶️ Как запустить проект
-1. Скачайте репозиторий:
-```bash
-git clone https://github.com/yourusername/imdb-rating-analysis
-pip install -r requirements.txt
-jupyter notebook notebook.ipynb
