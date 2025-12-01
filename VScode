@@ -1,0 +1,163 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+
+from sklearn.linear_model import LinearRegression, Ridge
+from sklearn.ensemble import RandomForestRegressor
+
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+
+sns.set(style="whitegrid", font_scale=1.2)
+
+
+# Загрузка данных
+
+df = pd.read_csv("C:/Users/Lymar/Desktop/movies.csv")
+
+print(df.head())
+print(df.info())
+print("Пропуски в данных:\n", df.isna().sum())
+
+
+# Предобработка
+
+df['budget'] = df['budget'].fillna(df['budget'].median())
+df['gross'] = df['gross'].fillna(df['gross'].median())
+df['votes'] = df['votes'].fillna(df['votes'].median())
+df['runtime'] = df['runtime'].fillna(df['runtime'].median())
+df['genre'] = df['genre'].fillna('Unknown')
+df['company'] = df['company'].fillna('Unknown')
+
+df.dropna(subset=['score'], inplace=True)
+
+
+# Визуализация
+
+plt.figure(figsize=(10, 6))
+sns.heatmap(df[['score','votes','budget','gross','runtime','year']].corr(),
+            annot=True, cmap="mako")
+plt.title("Корреляция признаков")
+plt.tight_layout()
+plt.show()
+
+plt.figure(figsize=(8, 5))
+sns.histplot(df['score'], bins=25, kde=True)
+plt.title("Распределение рейтингов IMDb")
+plt.xlabel("Рейтинг")
+plt.ylabel("Количество фильмов")
+plt.tight_layout()
+plt.show()
+
+plt.figure(figsize=(12, 5))
+sns.barplot(x=df['genre'], y=df['score'], estimator=np.mean, errorbar='sd')
+plt.xticks(rotation=45, ha='right')
+plt.title("Средний рейтинг по жанрам")
+plt.tight_layout()
+plt.show()
+
+plt.figure(figsize=(12, 5))
+sns.lineplot(data=df, x='year', y='runtime')
+plt.title("Длительность фильмов по годам")
+plt.tight_layout()
+plt.show()
+
+
+# Подготовка данных для моделей
+
+X = df[['genre', 'year', 'runtime', 'votes', 'budget']]
+y = df['score']
+
+categorical = ['genre']
+numerical = ['year', 'runtime', 'votes', 'budget']
+
+preprocessor = ColumnTransformer(
+    transformers=[
+        ('cat', OneHotEncoder(handle_unknown='ignore'), categorical),
+        ('num', StandardScaler(), numerical)
+    ]
+)
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+
+
+# Модели
+
+models = {
+    "Linear Regression": LinearRegression(),
+    "Ridge Regression": Ridge(alpha=1.0),
+    "Random Forest": RandomForestRegressor(n_estimators=150, random_state=42)
+}
+
+
+# Сравнение моделей
+
+results = []
+
+for name, model in models.items():
+    pipe = Pipeline(steps=[('preprocess', preprocessor),
+                           ('model', model)])
+    pipe.fit(X_train, y_train)
+    y_pred = pipe.predict(X_test)
+
+    rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+    mae = mean_absolute_error(y_test, y_pred)
+    r2 = r2_score(y_test, y_pred)
+
+    results.append([name, rmse, mae, r2])
+
+results_df = pd.DataFrame(results, columns=["Модель", "RMSE", "MAE", "R²"])
+print("\nРезультаты моделей:")
+print(results_df)
+
+
+# Визуализация результатов
+
+plt.figure(figsize=(8, 5))
+sns.barplot(x=results_df["Модель"], y=results_df["RMSE"])
+plt.title("Сравнение моделей по RMSE")
+plt.xticks(rotation=15)
+plt.tight_layout()
+plt.show()
+
+plt.figure(figsize=(8, 5))
+sns.barplot(x=results_df["Модель"], y=results_df["MAE"])
+plt.title("Сравнение моделей по MAE")
+plt.xticks(rotation=15)
+plt.tight_layout()
+plt.show()
+
+plt.figure(figsize=(8, 5))
+sns.barplot(x=results_df["Модель"], y=results_df["R²"])
+plt.title("Сравнение моделей по R²")
+plt.xticks(rotation=15)
+plt.tight_layout()
+plt.show()
+
+
+# Вывод
+
+best_rmse_model = results_df.loc[results_df["RMSE"].idxmin(), "Модель"]
+best_mae_model = results_df.loc[results_df["MAE"].idxmin(), "Модель"]
+best_r2_model = results_df.loc[results_df["R²"].idxmax(), "Модель"]
+
+print("\nАвтоматический анализ моделей:")
+print(f"• Лучшая модель по RMSE: {best_rmse_model}")
+print(f"• Лучшая модель по MAE: {best_mae_model}")
+print(f"• Лучшая модель по R²: {best_r2_model}")
+
+print("\nЗначения метрик:")
+for i, row in results_df.iterrows():
+    print(f"  - {row['Модель']}: RMSE={row['RMSE']:.3f}, MAE={row['MAE']:.3f}, R²={row['R²']:.3f}")
+
+print("\nОбщий итог анализа:")
+print("Модели продемонстрировали различное качество по метрикам. "
+      "Лучшие модели определены автоматически на основе минимального RMSE/MAE "
+      "и максимального R².")
